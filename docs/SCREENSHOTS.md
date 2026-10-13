@@ -159,6 +159,15 @@ Job dashboard — **Last Success #2, Last Failure: N/A**:
 
 ---
 
+## Full capture session
+
+All 45 screenshots taken during the session, in chronological order including setup steps
+and intermediate states, are in
+[`screenshots/full-session/`](screenshots/full-session/) with a timeline in its
+[README](screenshots/full-session/README.md).
+
+---
+
 ## Summary
 
 | Evaluation criterion | Evidence |
