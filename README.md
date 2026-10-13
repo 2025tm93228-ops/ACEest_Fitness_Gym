@@ -225,6 +225,15 @@ toolchains, on two different machines, before it can reach a release.
 
 ---
 
+## Pipeline Evidence
+
+Jenkins runs on a local lab VM and is not publicly reachable. Screenshots proving every
+stage executed successfully — including the Jenkins BUILD completing without errors — are
+indexed in **[`docs/SCREENSHOTS.md`](docs/SCREENSHOTS.md)**, with raw command output in
+[`docs/logs/`](docs/logs/).
+
+---
+
 ## 8. Version control strategy
 
 * `main` — protected, always green.
