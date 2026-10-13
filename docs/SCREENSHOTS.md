@@ -1,59 +1,60 @@
 # Pipeline Evidence
 
-Visual proof that every stage of the ACEest Fitness & Gym DevOps pipeline executed
-successfully on the target environment (Rocky Linux VM, Python 3.11, Jenkins 2.568.1).
+All 45 screenshots from the assignment session (13 October 2026, 18:08 – 19:39 IST) on the
+Rocky Linux lab VM — Python 3.11, Docker, Jenkins 2.568.1. Files are in
+[`screenshots/`](screenshots/), named chronologically by capture time.
 
-Jenkins runs on a local lab VM at `localhost:8080` and is not publicly reachable, so the
-screenshots in section **F** are the record of the BUILD stage completing without errors.
+Jenkins runs at `localhost:8080` on the lab VM and is not publicly reachable, so section **F**
+is the record of the BUILD quality gate completing without errors.
 
 ---
 
 ## A. Version Control (VCS Maturity)
 
-All four branches cloned and tracking `origin`, with `main` checked out for the build.
+All four branches cloned and tracking `origin`:
 
-![Branches](screenshots/01-git-branches-all.png)
+![Branches](screenshots/06-6-38-59-pm.png)
 
-The commit graph is in [`logs/git-history.log`](logs/git-history.log) — 13 commits with three
-`--no-ff` merges from `feature/pytest-suite`, `infra/docker` and `infra/cicd`.
+`main` checked out, Flask server starting:
+
+![On main](screenshots/11-6-58-10-pm.png)
+
+Commit graph: [`logs/git-history.log`](logs/git-history.log) — 13 commits, three `--no-ff`
+merges from `feature/pytest-suite`, `infra/docker` and `infra/cicd`.
 
 ---
 
 ## B. Application Integrity
 
-Flask development server starting on `main`:
+Dashboard with live gym metrics:
 
-![Server start](screenshots/02-on-main-server-start.png)
-
-Dashboard rendering with live gym metrics:
-
-![Dashboard](screenshots/03-flask-dashboard.png)
+![Dashboard](screenshots/12-6-58-30-pm.png)
 
 All three training programmes with workout and nutrition plans:
 
-![Programmes](screenshots/04-flask-training-programs.png)
+![Programmes](screenshots/13-6-58-40-pm.png)
 
-`POST /api/bmi` — 95 kg at 172 cm returns BMI 32.11, category *Obese*, and correctly
-recommends the Fat Loss programme. Browser devtools confirm **200 OK**:
+`POST /api/bmi` — 95 kg at 172 cm returns BMI 32.11, category *Obese*, recommends Fat Loss.
+Devtools confirm **200 OK**:
 
-![BMI API](screenshots/05-api-bmi-response.png)
+![BMI API](screenshots/15-7-01-14-pm.png)
 
-`POST /api/workouts` — a workout is validated, written to SQLite and returned with its new
-`id`. Devtools confirm **201 CREATED**:
+`POST /api/workouts` — validated, written to SQLite, returned with its new `id`.
+Devtools confirm **201 CREATED**:
 
-![Workout API](screenshots/06-api-workout-logged.png)
+![Workout API](screenshots/16-7-02-55-pm.png)
 
 ---
 
 ## C. Testing Coverage
 
-Full suite green — **66 tests passed**:
+**66 tests passed**:
 
-![Pytest](screenshots/07-pytest-66-passed.png)
+![Pytest](screenshots/09-6-51-51-pm.png)
 
-Coverage report — **99%** of statements, with `models.py` at 100%:
+Coverage **99%**, with `models.py` at 100%:
 
-![Coverage](screenshots/08-pytest-coverage-99.png)
+![Coverage](screenshots/10-6-52-33-pm.png)
 
 | Module | Statements | Coverage |
 |---|---|---|
@@ -70,101 +71,107 @@ Raw output: [`logs/pytest.log`](logs/pytest.log) · [`logs/pytest-coverage.log`]
 
 Multi-stage build of the `test` target:
 
-![Docker build](screenshots/09-docker-build-test-image.png)
+![Docker build](screenshots/17-7-05-07-pm.png)
 
 **Pytest executing inside the container** — the `docker run --rm aceest-fitness:test pytest -v`
-command is visible, confirming the suite ran in the containerised environment rather than on
-the host:
+command is visible, confirming the suite ran in the containerised environment, not on the host:
 
-![Pytest in container](screenshots/10-docker-pytest-in-container.png)
+![Pytest in container](screenshots/19-7-06-44-pm.png)
 
-Both image tags built. The `runtime` image is **smaller than `test`** because the multi-stage
-build keeps pytest, pytest-cov and flake8 out of production:
+The `runtime` image is **smaller than `test`** — the multi-stage build keeps pytest, pytest-cov
+and flake8 out of production:
 
-![Image sizes](screenshots/11-docker-images-size.png)
+![Image sizes](screenshots/21-7-09-13-pm.png)
 
 | Tag | Size | Contents |
 |---|---|---|
-| `aceest-fitness:test` | 137 MB | app + dev dependencies (pytest, flake8) |
+| `aceest-fitness:test` | 137 MB | app + dev dependencies |
 | `aceest-fitness:latest` | 131 MB | app only, non-root, gunicorn |
 
-Container running under gunicorn, reporting Docker's own `HEALTHCHECK` as **healthy**:
+Container under gunicorn, Docker's own `HEALTHCHECK` reporting **healthy**:
 
-![Docker ps](screenshots/12-docker-ps-healthy.png)
+![Docker ps](screenshots/23-7-10-39-pm.png)
 
-The `/health` endpoint responding from inside the container:
+`/health` responding from inside the container:
 
-![Health endpoint](screenshots/13-docker-health-endpoint.png)
+![Health endpoint](screenshots/24-7-11-17-pm.png)
 
 ---
 
 ## E. GitHub Actions (Continuous Integration)
 
-Six workflow runs, all green, triggered automatically by pushes to `main` and `infra/cicd`:
+Six workflow runs, all green, triggered automatically on push:
 
-![Actions runs](screenshots/14-actions-runs-all-green.png)
+![Actions runs](screenshots/26-7-14-03-pm.png)
 
 Both jobs passing in sequence — `Build & Lint` gates `Docker Image Assembly & Containerised Tests`:
 
-![Actions jobs](screenshots/15-actions-both-jobs-green.png)
+![Actions jobs](screenshots/27-7-15-07-pm.png)
 
 Docker build summary for both the `test` and `runtime` targets:
 
-![Actions docker](screenshots/16-actions-docker-build-summary.png)
+![Actions docker](screenshots/28-7-16-02-pm.png)
 
 ---
 
 ## F. Jenkins BUILD & Quality Gate
 
-**Poll SCM** trigger configured (`H/5 * * * *`) — used instead of a webhook because GitHub
-cannot reach a lab VM on a private network:
+**Poll SCM** trigger (`H/5 * * * *`) — used instead of a webhook because GitHub cannot reach a
+lab VM on a private network:
 
-![Poll SCM](screenshots/17-jenkins-poll-scm-trigger.png)
+![Poll SCM](screenshots/34-7-30-19-pm.png)
 
-**Pipeline script from SCM**, tracking `*/main` of this repository:
+**Pipeline script from SCM**, tracking `*/main`:
 
-![Pipeline from SCM](screenshots/18-jenkins-pipeline-from-scm.png)
+![Pipeline from SCM](screenshots/35-7-31-41-pm.png)
 
 ### Build #1 — all stages green
 
 Checkout SCM → Checkout → Build Environment → Lint & Compile → Unit Tests (Quality Gate)
 → Docker Build → Container Smoke Test. Completed in 1 min 8 sec:
 
-![Stages green](screenshots/19-jenkins-stages-all-green.png)
+![Stages green](screenshots/40-7-34-56-pm.png)
 
 Stage view including Post Actions:
 
-![Stages post actions](screenshots/20-jenkins-stages-post-actions.png)
+![Post actions](screenshots/39-7-34-39-pm.png)
 
-Pipeline console log — **66 passed**, with `junit.xml` and `coverage.xml` written to the
-Jenkins workspace:
+Console log — **66 passed**, with `junit.xml` and `coverage.xml` written to the workspace:
 
-![Console](screenshots/21-jenkins-console-66-passed.png)
+![Console](screenshots/41-7-35-38-pm.png)
 
-### JUnit results published to Jenkins
+### JUnit results published
 
-Test Result Trend across builds #1 and #2, both reporting 66 passing tests and no failures:
+Test Result Trend across builds #1 and #2, both 66 passing, no failures:
 
-![Test trend](screenshots/22-jenkins-test-result-trend.png)
+![Test trend](screenshots/43-7-37-34-pm.png)
 
 ### Build #2 — repeatable
 
-Build #2 succeeded in 44 sec against revision `1b0aedb`, with `Tests (no failures)`:
+Succeeded in 44 sec against revision `1b0aedb`, `Tests (no failures)`:
 
-![Build 2](screenshots/23-jenkins-build2-success.png)
+![Build 2](screenshots/45-7-39-09-pm.png)
 
 Job dashboard — **Last Success #2, Last Failure: N/A**:
 
-![Dashboard](screenshots/24-jenkins-dashboard-success.png)
+![Dashboard](screenshots/44-7-38-23-pm.png)
 
 ---
 
-## Full capture session
+## Session timeline
 
-All 45 screenshots taken during the session, in chronological order including setup steps
-and intermediate states, are in
-[`screenshots/full-session/`](screenshots/full-session/) with a timeline in its
-[README](screenshots/full-session/README.md).
+The remaining screenshots cover setup and intermediate states:
+
+| Time | Files | Phase |
+|---|---|---|
+| 18:08–18:10 | `01`–`03` | Repository creation; first push attempt (auth failure, resolved with a PAT) |
+| 18:37–18:39 | `04`–`06` | Cloning; checking out all four branches |
+| 18:50–18:52 | `07`–`10` | Python 3.11 virtualenv, dependencies, Pytest, coverage |
+| 18:58–19:02 | `11`–`16` | Flask server, dashboard, programmes, BMI and workout APIs |
+| 19:05–19:11 | `17`–`24` | Multi-stage Docker build, Pytest in container, image sizes, health |
+| 19:13–19:16 | `25`–`28` | GitHub Actions runs and job detail |
+| 19:23–19:31 | `29`–`36` | Jenkins startup, plugin install, job configuration |
+| 19:32–19:39 | `37`–`45` | Jenkins builds #1 and #2 — stages, console, JUnit trend |
 
 ---
 
@@ -172,9 +179,9 @@ and intermediate states, are in
 
 | Evaluation criterion | Evidence |
 |---|---|
-| Application Integrity | §B — dashboard rendering, `200 OK` on BMI, `201 CREATED` on workout write |
+| Application Integrity | §B — dashboard, `200 OK` on BMI, `201 CREATED` on workout write |
 | VCS Maturity | §A — 13 commits, 4 branches, 3 `--no-ff` merges |
 | Testing Coverage | §C — 66 tests, 99% statement coverage |
-| Docker Efficiency | §D — multi-stage, non-root, runtime image smaller than test image |
+| Docker Efficiency | §D — multi-stage, non-root, runtime smaller than test image |
 | Pipeline Reliability (GitHub Actions) | §E — 6 green runs triggered on push |
 | Pipeline Reliability (Jenkins) | §F — builds #1 and #2 green across all 7 stages, zero failures |
