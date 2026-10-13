@@ -1,5 +1,9 @@
 # ACEest Fitness & Gym — Automated CI/CD Pipeline
 
+**Repository:** https://github.com/2025tm93228-ops/ACEest_Fitness_Gym
+
+[![ACEest CI/CD Pipeline](https://github.com/2025tm93228-ops/ACEest_Fitness_Gym/actions/workflows/main.yml/badge.svg)](https://github.com/2025tm93228-ops/ACEest_Fitness_Gym/actions)
+
 A Flask web application for **ACEest Fitness & Gym**, delivered through a fully automated
 DevOps workflow: Git/GitHub for version control, Pytest for validation, Docker for
 containerisation, **GitHub Actions** for continuous integration and **Jenkins** for the
@@ -16,6 +20,7 @@ stateless, container-friendly web service.
 | **GitHub Actions** | 6 runs, all green, triggered on every push |
 | **Jenkins** | Builds #1 and #2 green across all 7 stages, zero failures |
 | **Environment** | Rocky Linux VM · Python 3.11 · Docker · Jenkins 2.568.1 |
+| **CI status** | [GitHub Actions](https://github.com/2025tm93228-ops/ACEest_Fitness_Gym/actions) |
 
 ---
 
