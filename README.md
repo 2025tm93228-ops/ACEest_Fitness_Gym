@@ -40,8 +40,8 @@ All four branches tracking `origin`:
 
 ![Branches](docs/screenshots/06-all-four-branches-tracking-origin.png)
 
-Commit graph: [`docs/logs/git-history.log`](docs/logs/git-history.log) — 13 commits with three
-`--no-ff` merges from `feature/pytest-suite`, `infra/docker` and `infra/cicd`.
+Commit graph: **[Insights → Network](../../network)** — 13 commits with three `--no-ff`
+merges from `feature/pytest-suite`, `infra/docker` and `infra/cicd`.
 
 ## B. Application Integrity
 
@@ -242,7 +242,6 @@ Build #2 succeeded in 44 sec against revision `1b0aedb`, `Tests (no failures)`:
 | `.github/workflows/main.yml` | GitHub Actions CI/CD pipeline |
 | `Jenkinsfile` | Declarative Jenkins BUILD pipeline |
 | `docs/screenshots/` | Pipeline evidence (45 images) |
-| `docs/logs/` | Raw command output committed as text evidence |
 
 ## 2. Local setup and execution
 
