@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="metrics">
+  <div class="card"><span class="num">{{ metrics.capacity_users }}</span><span>User capacity</span></div>
+  <div class="card"><span class="num">{{ "{:,}".format(metrics.area_sqft) }}</span><span>Sq ft</span></div>
+  <div class="card"><span class="num">{{ metrics.break_even_members }}</span><span>Break-even members</span></div>
+</section>
+
+<h2>Training Programs</h2>
+<section class="programs">
+  {% for program in programs %}
+  <article class="program">
+    <h3>{{ program.name }} <small>({{ program.code }})</small></h3>
+    <p class="cal">{{ program.calories }} kcal/day target</p>
+    <h4>Weekly workout</h4>
+    <ul>{% for line in program.workout %}<li>{{ line }}</li>{% endfor %}</ul>
+    <h4>Nutrition plan</h4>
+    <ul>{% for line in program.diet %}<li>{{ line }}</li>{% endfor %}</ul>
+  </article>
+  {% endfor %}
+</section>
+
+<h2>BMI Assessment</h2>
+<form id="bmi-form">
+  <label>Weight (kg) <input type="number" name="weight" step="0.1" required></label>
+  <label>Height (cm) <input type="number" name="height" step="0.1" required></label>
+  <button type="submit">Assess</button>
+</form>
+<pre id="bmi-result"></pre>
+
+<h2>Log a Workout</h2>
+<form id="workout-form">
+  <label>Client <input type="text" name="client" required></label>
+  <label>Type
+    <select name="workout_type">
+      {% for t in workout_types %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Duration (min) <input type="number" name="duration_min" value="60" required></label>
+  <label>Notes <input type="text" name="notes"></label>
+  <button type="submit">Log workout</button>
+</form>
+<pre id="workout-result"></pre>
+
+<script>
+async function post(url, form, target) {
+  const body = Object.fromEntries(new FormData(form).entries());
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body)
+  });
+  document.getElementById(target).textContent = JSON.stringify(await res.json(), null, 2);
+}
+document.getElementById('bmi-form').addEventListener('submit', e => {
+  e.preventDefault(); post('/api/bmi', e.target, 'bmi-result');
+});
+document.getElementById('workout-form').addEventListener('submit', e => {
+  e.preventDefault(); post('/api/workouts', e.target, 'workout-result');
+});
+</script>
+{% endblock %}

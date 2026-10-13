@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}ACEest Fitness &amp; Gym{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header>
+    <h1>ACEest Functional Fitness</h1>
+    <p class="tagline">Gym &amp; Member Management</p>
+  </header>
+  <main>{% block content %}{% endblock %}</main>
+  <footer>ACEest Fitness &amp; Gym &middot; v{{ version|default('1.0.0') }}</footer>
+</body>
+</html>
