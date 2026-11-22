@@ -138,3 +138,22 @@ class TestWorkoutEndpoints:
 
     def test_databases_are_isolated_between_tests(self, client):
         assert client.get("/api/workouts").get_json()["count"] == 0
+
+
+class TestDeploymentIdentity:
+    """Covers the endpoints used to verify Kubernetes traffic splits."""
+
+    def test_version_endpoint_reports_identity(self, client):
+        payload = client.get("/api/version").get_json()
+        assert set(payload) == {"version", "variant", "pod"}
+        assert payload["version"]
+        assert payload["pod"]
+
+    def test_health_includes_variant_and_pod(self, client):
+        payload = client.get("/health").get_json()
+        assert payload["status"] == "healthy"
+        assert "variant" in payload and "pod" in payload
+
+    def test_version_defaults_when_env_absent(self, client):
+        # No APP_VARIANT set in the test environment, so the default applies.
+        assert client.get("/api/version").get_json()["variant"] == "stable"

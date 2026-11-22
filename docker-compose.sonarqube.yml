@@ -1,0 +1,21 @@
+# ---------------------------------------------------------------------------
+# Local SonarQube server for static analysis and the quality gate.
+#   docker compose -f docker-compose.sonarqube.yml up -d
+#   then open http://localhost:9000   (first login: admin / admin)
+# ---------------------------------------------------------------------------
+services:
+  sonarqube:
+    image: sonarqube:10-community
+    container_name: aceest-sonarqube
+    ports:
+      - "9000:9000"
+    environment:
+      - SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_logs:/opt/sonarqube/logs
+      - sonarqube_extensions:/opt/sonarqube/extensions
+volumes:
+  sonarqube_data:
+  sonarqube_logs:
+  sonarqube_extensions:

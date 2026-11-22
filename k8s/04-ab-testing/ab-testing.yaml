@@ -1,0 +1,131 @@
+# ===========================================================================
+# STRATEGY 4 of 5 - A/B TESTING
+#
+# Unlike a canary (which splits traffic randomly by weight to limit blast
+# radius), A/B testing routes DELIBERATELY: a specific, identifiable cohort is
+# sent to variant B so its behaviour can be compared against variant A. The
+# routing key here is an HTTP header, so the choice is reproducible per user
+# rather than random per request.
+#
+#   Variant A (control)    -> v1.0.0
+#   Variant B (experiment) -> v2.0.0, reached only with  X-Variant: B
+#
+# Requires: minikube addons enable ingress
+# ===========================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aceest-variant-a
+  namespace: aceest
+  labels: { app: aceest-fitness, strategy: ab-testing, variant: A }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: aceest-fitness, abvariant: A }
+  template:
+    metadata:
+      labels: { app: aceest-fitness, strategy: ab-testing, abvariant: A }
+    spec:
+      containers:
+        - name: aceest
+          image: 2025tm93228/aceest-fitness:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports: [{ containerPort: 5000 }]
+          env:
+            - { name: APP_VERSION, value: "1.0.0" }
+            - { name: APP_VARIANT, value: "A" }
+            - name: POD_NAME
+              valueFrom: { fieldRef: { fieldPath: metadata.name } }
+            - { name: ACEEST_DB, value: "/tmp/aceest.db" }
+          readinessProbe:
+            httpGet: { path: /health, port: 5000 }
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            requests: { cpu: "50m", memory: "64Mi" }
+            limits:   { cpu: "300m", memory: "256Mi" }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aceest-variant-b
+  namespace: aceest
+  labels: { app: aceest-fitness, strategy: ab-testing, variant: B }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: aceest-fitness, abvariant: B }
+  template:
+    metadata:
+      labels: { app: aceest-fitness, strategy: ab-testing, abvariant: B }
+    spec:
+      containers:
+        - name: aceest
+          image: 2025tm93228/aceest-fitness:2.0.0
+          imagePullPolicy: IfNotPresent
+          ports: [{ containerPort: 5000 }]
+          env:
+            - { name: APP_VERSION, value: "2.0.0" }
+            - { name: APP_VARIANT, value: "B" }
+            - name: POD_NAME
+              valueFrom: { fieldRef: { fieldPath: metadata.name } }
+            - { name: ACEEST_DB, value: "/tmp/aceest.db" }
+          readinessProbe:
+            httpGet: { path: /health, port: 5000 }
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            requests: { cpu: "50m", memory: "64Mi" }
+            limits:   { cpu: "300m", memory: "256Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: aceest-a-svc, namespace: aceest }
+spec:
+  selector: { app: aceest-fitness, abvariant: A }
+  ports: [{ port: 80, targetPort: 5000 }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: aceest-b-svc, namespace: aceest }
+spec:
+  selector: { app: aceest-fitness, abvariant: B }
+  ports: [{ port: 80, targetPort: 5000 }]
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: aceest-ab-primary
+  namespace: aceest
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: ab.aceest.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: aceest-a-svc, port: { number: 80 } }
+---
+# Header-driven routing: only requests carrying  X-Variant: B  reach variant B.
+# Everyone else stays on A. This is what distinguishes A/B from a canary.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: aceest-ab-experiment
+  namespace: aceest
+  annotations:
+    nginx.ingress.kubernetes.io/canary: "true"
+    nginx.ingress.kubernetes.io/canary-by-header: "X-Variant"
+    nginx.ingress.kubernetes.io/canary-by-header-value: "B"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: ab.aceest.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: aceest-b-svc, port: { number: 80 } }

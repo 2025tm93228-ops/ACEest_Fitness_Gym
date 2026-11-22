@@ -1,0 +1,72 @@
+
+════════ STRATEGY 1 of 5 - ROLLING UPDATE (zero downtime + rollback) ════════
+-- revision history
+    deployment.apps/aceest-rolling 
+    REVISION  CHANGE-CAUSE
+    2         Rolling update to v2.0.0
+    3         Rolling update to v1.0.0
+    
+-- serving BEFORE
+    {"pod":"aceest-rolling-76b988c5f4-h96m6","variant":"stable","version":"1.0.0"}
+-- rolling out v2.0.0  (maxUnavailable=0 so capacity never drops below 4)
+    deployment "aceest-rolling" successfully rolled out
+-- serving AFTER rollout
+    {"pod":"aceest-rolling-6df4fbd876-sfcg4","variant":"stable","version":"2.0.0"}
+-- ROLLBACK - kubectl rollout undo
+    deployment "aceest-rolling" successfully rolled out
+-- serving AFTER rollback (reverted to last stable)
+    {"pod":"aceest-rolling-58fd6d88d5-hzczx","variant":"stable","version":"1.0.0"}
+
+════════ STRATEGY 2 of 5 - BLUE-GREEN (atomic cutover + instant rollback) ════════
+-- live service, selector -> blue
+    {"pod":"aceest-blue-6bbf854f59-zsdpm","variant":"blue","version":"1.0.0"}
+-- green preview, smoke tested privately before any cutover
+    {"pod":"aceest-green-7d8479d5d5-5mxc4","variant":"green","version":"2.0.0"}
+-- PROMOTE - patch the Service selector to green
+    {"pod":"aceest-green-7d8479d5d5-m8l7v","variant":"green","version":"2.0.0"}
+-- ROLLBACK - patch the selector back to blue
+    {"pod":"aceest-blue-6bbf854f59-zsdpm","variant":"blue","version":"1.0.0"}
+
+════════ STRATEGY 3 of 5 - CANARY (weighted traffic split) ════════
+-- stable = 4 replicas v1.0.0   canary = 1 replica v2.0.0   weight = 20%
+    stable svc: {"pod":"aceest-stable-7497479685-77ckd","variant":"stable","version":"1.0.0"}
+    canary svc: {"pod":"aceest-canary-584688567c-889kn","variant":"canary","version":"2.0.0"}
+-- observed distribution through the ingress (40 requests)
+    stable v1.0.0         32/40   80.0%
+    canary v2.0.0          8/40   20.0%
+-- ROLLBACK - canary-weight set to 0
+    stable v1.0.0         20/20  100.0%
+
+════════ STRATEGY 4 of 5 - A/B TESTING (deliberate header-based routing) ════════
+-- A = v1.0.0 control,  B = v2.0.0 experiment,  key = header X-Variant: B
+    A svc: {"pod":"aceest-variant-a-648c7d6f4-znkc4","variant":"A","version":"1.0.0"}
+    B svc: {"pod":"aceest-variant-b-6477d894cd-9ltvc","variant":"B","version":"2.0.0"}
+-- WITHOUT the header (20 requests) - everyone stays on A
+    A v1.0.0              20/20  100.0%
+-- WITH  X-Variant: B  (20 requests) - that cohort is routed to B
+    B v2.0.0              20/20  100.0%
+
+════════ STRATEGY 5 of 5 - SHADOW (traffic mirroring, responses discarded) ════════
+-- primary answers the user; shadow receives a copy it never replies with
+    primary svc: {"pod":"aceest-primary-56b9d66c54-hvzk9","variant":"primary","version":"1.0.0"}
+    shadow  svc: {"pod":"aceest-shadow-5ff9bbd89d-d8wft","variant":"shadow","version":"2.0.0"}
+-- 10 requests through the mirroring ingress - all answered by PRIMARY
+    primary v1.0.0        10/10  100.0%
+-- shadow pod access log - the mirrored copies arriving
+    10.244.0.1 - - [22/Nov/2026:21:25:18 +0000] "GET /health HTTP/1.1" 200 124 "-" "kube-probe/1.37"
+    10.244.0.5 - - [22/Nov/2026:21:25:19 +0000] "GET //api/version HTTP/1.0" 200 78 "-" "curl/8.23.0"
+    10.244.0.5 - - [22/Nov/2026:21:25:19 +0000] "GET //api/version HTTP/1.0" 200 78 "-" "curl/8.23.0"
+    10.244.0.5 - - [22/Nov/2026:21:25:20 +0000] "GET //api/version HTTP/1.0" 200 78 "-" "curl/8.23.0"
+    10.244.0.5 - - [22/Nov/2026:21:25:21 +0000] "GET //api/version HTTP/1.0" 200 78 "-" "curl/8.23.0"
+    10.244.0.5 - - [22/Nov/2026:21:25:21 +0000] "GET //api/version HTTP/1.0" 200 78 "-" "curl/8.23.0"
+
+════════ FINAL CLUSTER STATE ════════
+    aceest-blue            2/2
+    aceest-canary          1/1
+    aceest-green           2/2
+    aceest-primary         2/2
+    aceest-rolling         4/4
+    aceest-shadow          1/1
+    aceest-stable          4/4
+    aceest-variant-a       2/2
+    aceest-variant-b       2/2

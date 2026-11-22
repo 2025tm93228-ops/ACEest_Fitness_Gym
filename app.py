@@ -5,6 +5,7 @@ and workout logging. Created with an application factory so Pytest can
 spin up isolated instances against a temporary database.
 """
 import os
+import socket
 
 from flask import Flask, jsonify, render_template, request
 
@@ -21,7 +22,15 @@ from models import (
     validate_workout,
 )
 
-APP_VERSION = "1.0.0"
+# ---------------------------------------------------------------------------
+# Deployment identity. These are injected by Kubernetes (see k8s/*.yaml) so that
+# every running pod can state which build and which deployment track served the
+# request. This is what makes Blue-Green, Canary, A/B and Shadow traffic splits
+# observable from the outside: curl the endpoint repeatedly and read the answers.
+# ---------------------------------------------------------------------------
+APP_VERSION = os.environ.get("APP_VERSION", "1.0.0")
+APP_VARIANT = os.environ.get("APP_VARIANT", "stable")   # blue | green | canary | A | B | shadow
+POD_NAME    = os.environ.get("POD_NAME", socket.gethostname())
 
 
 def create_app(database=None):
@@ -51,7 +60,19 @@ def create_app(database=None):
 
     @app.route("/health")
     def health():
-        return jsonify(status="healthy", service="aceest-fitness", version=APP_VERSION)
+        """Liveness probe. Also reports deployment identity for traffic checks."""
+        return jsonify(
+            status="healthy",
+            service="aceest-fitness",
+            version=APP_VERSION,
+            variant=APP_VARIANT,
+            pod=POD_NAME,
+        )
+
+    @app.route("/api/version")
+    def api_version():
+        """Deployment identity endpoint used to verify traffic splits."""
+        return jsonify(version=APP_VERSION, variant=APP_VARIANT, pod=POD_NAME)
 
     # ---------------- Programs ----------------
 

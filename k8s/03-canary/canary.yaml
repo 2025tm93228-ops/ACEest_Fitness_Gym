@@ -1,0 +1,139 @@
+# ===========================================================================
+# STRATEGY 3 of 5 - CANARY RELEASE
+#
+# A small, controlled percentage of live traffic is routed to the new version
+# while the overwhelming majority continues to hit the proven one. If error
+# rates rise, the canary is withdrawn before most users ever meet it.
+#
+# The split is enforced by the NGINX ingress controller using a weighted canary
+# ingress (canary-weight: 20 => roughly 20% of requests). Weight can be raised
+# progressively (20 -> 50 -> 100) and dropped to 0 instantly to roll back,
+# without deleting or rescheduling a single pod.
+#
+# Requires: minikube addons enable ingress
+# ===========================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aceest-stable
+  namespace: aceest
+  labels: { app: aceest-fitness, strategy: canary, track: stable }
+spec:
+  replicas: 4
+  selector:
+    matchLabels: { app: aceest-fitness, track: stable }
+  template:
+    metadata:
+      labels: { app: aceest-fitness, strategy: canary, track: stable }
+    spec:
+      containers:
+        - name: aceest
+          image: 2025tm93228/aceest-fitness:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports: [{ containerPort: 5000 }]
+          env:
+            - { name: APP_VERSION, value: "1.0.0" }
+            - { name: APP_VARIANT, value: "stable" }
+            - name: POD_NAME
+              valueFrom: { fieldRef: { fieldPath: metadata.name } }
+            - { name: ACEEST_DB, value: "/tmp/aceest.db" }
+          readinessProbe:
+            httpGet: { path: /health, port: 5000 }
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            requests: { cpu: "50m", memory: "64Mi" }
+            limits:   { cpu: "300m", memory: "256Mi" }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aceest-canary
+  namespace: aceest
+  labels: { app: aceest-fitness, strategy: canary, track: canary }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: aceest-fitness, track: canary }
+  template:
+    metadata:
+      labels: { app: aceest-fitness, strategy: canary, track: canary }
+    spec:
+      containers:
+        - name: aceest
+          image: 2025tm93228/aceest-fitness:2.0.0
+          imagePullPolicy: IfNotPresent
+          ports: [{ containerPort: 5000 }]
+          env:
+            - { name: APP_VERSION, value: "2.0.0" }
+            - { name: APP_VARIANT, value: "canary" }
+            - name: POD_NAME
+              valueFrom: { fieldRef: { fieldPath: metadata.name } }
+            - { name: ACEEST_DB, value: "/tmp/aceest.db" }
+          readinessProbe:
+            httpGet: { path: /health, port: 5000 }
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            requests: { cpu: "50m", memory: "64Mi" }
+            limits:   { cpu: "300m", memory: "256Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aceest-stable-svc
+  namespace: aceest
+spec:
+  selector: { app: aceest-fitness, track: stable }
+  ports: [{ port: 80, targetPort: 5000 }]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aceest-canary-svc
+  namespace: aceest
+spec:
+  selector: { app: aceest-fitness, track: canary }
+  ports: [{ port: 80, targetPort: 5000 }]
+---
+# Primary ingress - receives all traffic not claimed by the canary ingress.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: aceest-canary-primary
+  namespace: aceest
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: canary.aceest.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: aceest-stable-svc
+                port: { number: 80 }
+---
+# Canary ingress - same host, but claims a weighted share of the traffic.
+# Set canary-weight to 0 to roll back instantly, or 100 to promote fully.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: aceest-canary-weighted
+  namespace: aceest
+  annotations:
+    nginx.ingress.kubernetes.io/canary: "true"
+    nginx.ingress.kubernetes.io/canary-weight: "20"     # ~20% to v2.0.0
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: canary.aceest.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: aceest-canary-svc
+                port: { number: 80 }

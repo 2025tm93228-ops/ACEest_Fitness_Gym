@@ -1,0 +1,98 @@
+# ===========================================================================
+# STRATEGY 1 of 5 - ROLLING UPDATE
+#
+# Kubernetes replaces pods incrementally rather than all at once. With
+# maxUnavailable: 0 the old ReplicaSet is only scaled down once a new pod has
+# passed its readiness probe, so capacity never drops below 100% - this is what
+# delivers zero downtime. maxSurge: 1 allows one extra pod during the rollout.
+#
+# Rollback: `kubectl rollout undo` reverts to the previous ReplicaSet, which
+# Kubernetes retains (revisionHistoryLimit).
+# ===========================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aceest-rolling
+  namespace: aceest
+  labels:
+    app: aceest-fitness
+    strategy: rolling-update
+  annotations:
+    kubernetes.io/change-cause: "Rolling update to v1.0.0"
+spec:
+  replicas: 4
+  revisionHistoryLimit: 5          # keep 5 old ReplicaSets so rollback is possible
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1                  # at most 1 extra pod above replicas during rollout
+      maxUnavailable: 0            # never drop below the desired count -> zero downtime
+  selector:
+    matchLabels:
+      app: aceest-fitness
+      strategy: rolling-update
+  template:
+    metadata:
+      labels:
+        app: aceest-fitness
+        strategy: rolling-update
+    spec:
+      containers:
+        - name: aceest
+          image: 2025tm93228/aceest-fitness:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5000
+              name: http
+          env:
+            - name: APP_VERSION
+              value: "1.0.0"
+            - name: APP_VARIANT
+              value: "stable"
+            - name: POD_NAME         # lets each pod identify itself in responses
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: ACEEST_DB
+              value: "/tmp/aceest.db"
+          # Readiness gates the rollout: a new pod receives traffic only after
+          # this probe succeeds, which is what makes maxUnavailable: 0 meaningful.
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "300m"
+              memory: "256Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aceest-rolling-svc
+  namespace: aceest
+  labels:
+    app: aceest-fitness
+    strategy: rolling-update
+spec:
+  type: NodePort
+  selector:
+    app: aceest-fitness
+    strategy: rolling-update
+  ports:
+    - port: 80
+      targetPort: 5000
+      nodePort: 30081
+      name: http

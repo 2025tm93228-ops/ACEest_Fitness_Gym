@@ -1,0 +1,117 @@
+# ===========================================================================
+# STRATEGY 5 of 5 - SHADOW (TRAFFIC MIRRORING) DEPLOYMENT
+#
+# Real production traffic is DUPLICATED to the new version, but its responses
+# are discarded - the user only ever receives the primary's answer. This lets
+# the candidate be exercised with genuine request patterns and load at zero
+# user-facing risk, which neither canary nor blue-green can offer: in both of
+# those, somebody really is served by the new build.
+#
+# Implemented with the NGINX ingress mirror annotations. NGINX issues a
+# background sub-request to the shadow backend and ignores whatever it returns.
+#
+# Verification: the shadow pod's LOGS show the mirrored requests arriving,
+# while every response the client sees reports variant "primary".
+#
+# Requires: minikube addons enable ingress
+# ===========================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aceest-primary
+  namespace: aceest
+  labels: { app: aceest-fitness, strategy: shadow, role: primary }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: aceest-fitness, role: primary }
+  template:
+    metadata:
+      labels: { app: aceest-fitness, strategy: shadow, role: primary }
+    spec:
+      containers:
+        - name: aceest
+          image: 2025tm93228/aceest-fitness:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports: [{ containerPort: 5000 }]
+          env:
+            - { name: APP_VERSION, value: "1.0.0" }
+            - { name: APP_VARIANT, value: "primary" }
+            - name: POD_NAME
+              valueFrom: { fieldRef: { fieldPath: metadata.name } }
+            - { name: ACEEST_DB, value: "/tmp/aceest.db" }
+          readinessProbe:
+            httpGet: { path: /health, port: 5000 }
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            requests: { cpu: "50m", memory: "64Mi" }
+            limits:   { cpu: "300m", memory: "256Mi" }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aceest-shadow
+  namespace: aceest
+  labels: { app: aceest-fitness, strategy: shadow, role: shadow }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: aceest-fitness, role: shadow }
+  template:
+    metadata:
+      labels: { app: aceest-fitness, strategy: shadow, role: shadow }
+    spec:
+      containers:
+        - name: aceest
+          image: 2025tm93228/aceest-fitness:2.0.0
+          imagePullPolicy: IfNotPresent
+          ports: [{ containerPort: 5000 }]
+          env:
+            - { name: APP_VERSION, value: "2.0.0" }
+            - { name: APP_VARIANT, value: "shadow" }
+            - name: POD_NAME
+              valueFrom: { fieldRef: { fieldPath: metadata.name } }
+            - { name: ACEEST_DB, value: "/tmp/aceest.db" }
+          readinessProbe:
+            httpGet: { path: /health, port: 5000 }
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            requests: { cpu: "50m", memory: "64Mi" }
+            limits:   { cpu: "300m", memory: "256Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: aceest-primary-svc, namespace: aceest }
+spec:
+  selector: { app: aceest-fitness, role: primary }
+  ports: [{ port: 80, targetPort: 5000 }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: aceest-shadow-svc, namespace: aceest }
+spec:
+  selector: { app: aceest-fitness, role: shadow }
+  ports: [{ port: 80, targetPort: 5000 }]
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: aceest-shadow-ingress
+  namespace: aceest
+  annotations:
+    # Every request served by the primary is also mirrored to the shadow
+    # backend. mirror-request-body: "on" duplicates POST bodies as well.
+    nginx.ingress.kubernetes.io/mirror-target: "http://aceest-shadow-svc.aceest.svc.cluster.local/$request_uri"
+    nginx.ingress.kubernetes.io/mirror-request-body: "on"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: shadow.aceest.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: aceest-primary-svc, port: { number: 80 } }

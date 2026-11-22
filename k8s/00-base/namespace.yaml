@@ -1,0 +1,12 @@
+# ---------------------------------------------------------------------------
+# All ACEest workloads live in a dedicated namespace so that the five
+# deployment strategies can be applied, inspected and torn down independently
+# of anything else running on the cluster.
+# ---------------------------------------------------------------------------
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aceest
+  labels:
+    app: aceest-fitness
+    managed-by: jenkins

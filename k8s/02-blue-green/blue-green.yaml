@@ -1,0 +1,115 @@
+# ===========================================================================
+# STRATEGY 2 of 5 - BLUE-GREEN DEPLOYMENT
+#
+# Two complete environments run side by side:
+#   BLUE  = the currently live version   (v1.0.0)
+#   GREEN = the candidate version        (v2.0.0)
+#
+# A single Service decides which one is live, purely through its selector
+# (`variant: blue` or `variant: green`). Switching is therefore atomic and
+# instantaneous - no pod is created or destroyed at cutover - and rollback is
+# simply switching the selector back, which takes effect in milliseconds.
+#
+#   Cut over : kubectl patch svc aceest-bluegreen-svc -n aceest \
+#                -p '{"spec":{"selector":{"app":"aceest-fitness","variant":"green"}}}'
+#   Roll back: same command with "blue"
+# ===========================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aceest-blue
+  namespace: aceest
+  labels: { app: aceest-fitness, strategy: blue-green, variant: blue }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: aceest-fitness, variant: blue }
+  template:
+    metadata:
+      labels: { app: aceest-fitness, strategy: blue-green, variant: blue }
+    spec:
+      containers:
+        - name: aceest
+          image: 2025tm93228/aceest-fitness:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports: [{ containerPort: 5000 }]
+          env:
+            - { name: APP_VERSION, value: "1.0.0" }
+            - { name: APP_VARIANT, value: "blue" }
+            - name: POD_NAME
+              valueFrom: { fieldRef: { fieldPath: metadata.name } }
+            - { name: ACEEST_DB, value: "/tmp/aceest.db" }
+          readinessProbe:
+            httpGet: { path: /health, port: 5000 }
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            requests: { cpu: "50m", memory: "64Mi" }
+            limits:   { cpu: "300m", memory: "256Mi" }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aceest-green
+  namespace: aceest
+  labels: { app: aceest-fitness, strategy: blue-green, variant: green }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: aceest-fitness, variant: green }
+  template:
+    metadata:
+      labels: { app: aceest-fitness, strategy: blue-green, variant: green }
+    spec:
+      containers:
+        - name: aceest
+          image: 2025tm93228/aceest-fitness:2.0.0
+          imagePullPolicy: IfNotPresent
+          ports: [{ containerPort: 5000 }]
+          env:
+            - { name: APP_VERSION, value: "2.0.0" }
+            - { name: APP_VARIANT, value: "green" }
+            - name: POD_NAME
+              valueFrom: { fieldRef: { fieldPath: metadata.name } }
+            - { name: ACEEST_DB, value: "/tmp/aceest.db" }
+          readinessProbe:
+            httpGet: { path: /health, port: 5000 }
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            requests: { cpu: "50m", memory: "64Mi" }
+            limits:   { cpu: "300m", memory: "256Mi" }
+---
+# The live Service. Its selector is the switch: whichever variant it names
+# receives 100% of traffic. Starts pointing at BLUE.
+apiVersion: v1
+kind: Service
+metadata:
+  name: aceest-bluegreen-svc
+  namespace: aceest
+  labels: { app: aceest-fitness, strategy: blue-green }
+  annotations:
+    aceest.io/live-variant: "blue"
+spec:
+  type: NodePort
+  selector:
+    app: aceest-fitness
+    variant: blue            # <-- the cutover switch
+  ports:
+    - { port: 80, targetPort: 5000, nodePort: 30082, name: http }
+---
+# A second Service that always points at GREEN, so the candidate can be smoke
+# tested privately before any production traffic is cut over to it.
+apiVersion: v1
+kind: Service
+metadata:
+  name: aceest-green-preview
+  namespace: aceest
+  labels: { app: aceest-fitness, strategy: blue-green }
+spec:
+  type: NodePort
+  selector:
+    app: aceest-fitness
+    variant: green
+  ports:
+    - { port: 80, targetPort: 5000, nodePort: 30083, name: http }
