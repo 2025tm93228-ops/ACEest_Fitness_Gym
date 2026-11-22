@@ -24,6 +24,83 @@ stateless, container-friendly web service.
 
 ---
 
+
+---
+
+# Assignment 2 — Full CI/CD Pipeline with Kubernetes
+
+| | |
+|---|---|
+| **Docker Hub** | https://hub.docker.com/r/2025tm93228/aceest-fitness |
+| **Report** | [`docs/REPORT.md`](docs/REPORT.md) |
+| **Raw evidence** | [`docs/evidence-deployment-strategies.log`](docs/evidence-deployment-strategies.log) |
+| **Cluster** | Minikube, namespace `aceest`, 9 deployments |
+
+## Pipeline stages (Jenkinsfile)
+
+Checkout → Build Env → Lint → **69 unit tests** → SonarQube → **Quality Gate (blocking)**
+→ Docker build → test inside container → push to Docker Hub → deploy to Kubernetes →
+smoke test. On failure, `post` issues an automatic `kubectl rollout undo`.
+
+## Five deployment strategies — measured results
+
+| Strategy | Mechanism | Verified result |
+|---|---|---|
+| Rolling Update | `maxUnavailable: 0` | v1.0.0 → v2.0.0 → rollback, no capacity loss |
+| Blue-Green | Service selector switch | blue → green → blue, atomic cutover |
+| Canary | ingress `canary-weight: 20` | **80.0% stable / 20.0% canary** over 40 requests |
+| A/B Testing | ingress `canary-by-header` | 100% A without header, 100% B with `X-Variant: B` |
+| Shadow | ingress `mirror-target` | 100% served by primary; shadow logs show mirrored copies |
+
+## Quick start
+
+```bash
+# 1. Cluster (--apiserver-name avoids minikube issue #9175)
+minikube start --driver=docker --cpus=2 --memory=2800 --apiserver-name=localhost
+minikube addons enable ingress
+
+# 2. Images (this minikube runs containerd, so build on host then load)
+docker build --target runtime -t 2025tm93228/aceest-fitness:1.0.0 .
+docker tag 2025tm93228/aceest-fitness:1.0.0 2025tm93228/aceest-fitness:2.0.0
+minikube image load 2025tm93228/aceest-fitness:1.0.0
+minikube image load 2025tm93228/aceest-fitness:2.0.0
+
+# 3. Deploy all five strategies
+./k8s/scripts/deploy.sh all
+
+# 4. Prove they work (this generates the evidence log)
+./k8s/scripts/demo-all-strategies.sh
+
+# 5. Roll back any strategy
+./k8s/scripts/rollback.sh rolling|bluegreen|canary|ab|shadow
+```
+
+## SonarQube
+
+```bash
+docker compose -f docker-compose.sonarqube.yml up -d     # http://localhost:9000
+export SONAR_TOKEN=<token created in the UI>
+./k8s/scripts/run-sonar.sh
+```
+
+## Assignment 2 additions
+
+```
+k8s/
+  00-base/            namespace
+  01-rolling-update/  Deployment with RollingUpdate strategy + NodePort
+  02-blue-green/      blue + green Deployments, switchable Service, green preview
+  03-canary/          stable + canary Deployments, weighted ingress
+  04-ab-testing/      variant A + B Deployments, header-routed ingress
+  05-shadow/          primary + shadow Deployments, mirroring ingress
+  scripts/            deploy.sh  promote.sh  rollback.sh
+                      verify-traffic.sh  demo-all-strategies.sh  run-sonar.sh
+Jenkinsfile                   11-stage pipeline, quality gate, auto-rollback
+sonar-project.properties
+docker-compose.sonarqube.yml
+docs/REPORT.md                architecture, challenges, outcomes
+```
+
 # Pipeline Evidence
 
 All 45 screenshots from the assignment session (13 October 2026, 18:08 – 19:39 IST) are in
