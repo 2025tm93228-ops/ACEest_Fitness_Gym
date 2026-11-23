@@ -19,9 +19,14 @@ cget()  { kubectl exec -n $NS $BOX -- curl -s --max-time 5 "$1" 2>/dev/null; }
 cing()  { kubectl exec -n $NS $BOX -- curl -s --max-time 5 -H "Host: $1" "http://$ING$2" 2>/dev/null; }
 cingh() { kubectl exec -n $NS $BOX -- curl -s --max-time 5 -H "Host: $1" -H "$3" "http://$ING$2" 2>/dev/null; }
 
-if ! kubectl get pod $BOX -n $NS >/dev/null 2>&1; then
-  kubectl run $BOX -n $NS --image=curlimages/curl:latest --restart=Never -- sleep 7200 >/dev/null
-  kubectl wait --for=condition=Ready pod/$BOX -n $NS --timeout=120s >/dev/null
+# Ensure the helper pod exists AND is actually Running. A pod whose sleep has
+# expired reports phase Succeeded, which still satisfies "kubectl get pod", so
+# the phase must be checked explicitly or exec fails with "completed pod".
+PHASE=$(kubectl get pod $BOX -n $NS -o jsonpath='{.status.phase}' 2>/dev/null || echo "")
+if [ "$PHASE" != "Running" ]; then
+  [ -n "$PHASE" ] && kubectl delete pod $BOX -n $NS --ignore-not-found >/dev/null 2>&1
+  kubectl run $BOX -n $NS --image=curlimages/curl:latest --restart=Never -- sleep 86400 >/dev/null
+  kubectl wait --for=condition=Ready pod/$BOX -n $NS --timeout=180s >/dev/null
 fi
 
 # Hit a host through the ingress N times and tally which variant answered.
