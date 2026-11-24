@@ -157,3 +157,20 @@ class TestDeploymentIdentity:
     def test_version_defaults_when_env_absent(self, client):
         # No APP_VARIANT set in the test environment, so the default applies.
         assert client.get("/api/version").get_json()["variant"] == "stable"
+
+
+class TestNamedEntryPoint:
+    """The brief names the application ACEest_Fitness.py; verify that entry
+    point exposes a working WSGI app, since the Docker image runs
+    `gunicorn ACEest_Fitness:app`."""
+
+    def test_module_exposes_wsgi_callable(self):
+        import ACEest_Fitness
+        assert hasattr(ACEest_Fitness, "app")
+        assert callable(ACEest_Fitness.app)
+
+    def test_entry_point_serves_health(self):
+        from ACEest_Fitness import app as entry_app
+        response = entry_app.test_client().get("/health")
+        assert response.status_code == 200
+        assert response.get_json()["status"] == "healthy"

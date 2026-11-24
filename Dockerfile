@@ -31,7 +31,7 @@ FROM base AS runtime
 # Run as an unprivileged user
 RUN useradd --create-home --shell /usr/sbin/nologin aceest
 
-COPY --chown=aceest:aceest app.py db.py models.py ./
+COPY --chown=aceest:aceest ACEest_Fitness.py app.py db.py models.py ./
 COPY --chown=aceest:aceest templates/ ./templates/
 COPY --chown=aceest:aceest static/ ./static/
 
@@ -45,4 +45,5 @@ EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:5000/health').status==200 else 1)"
 
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--access-logfile", "-", "app:app"]
+# Entry point named as the assignment brief specifies (ACEest_Fitness.py)
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--access-logfile", "-", "ACEest_Fitness:app"]
